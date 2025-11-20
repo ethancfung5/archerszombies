@@ -1,0 +1,21 @@
+# controllers/__init__.py
+
+from .random_controller import RandomController
+from .uniform_cost_search import UniformCostStubController
+from .dfs_controller import DepthFirstStubController
+from .bfs_controller import BreadthFirstStubController
+from .astar_controller import AStarStubController
+
+# Registry to populate the dropdown
+CONTROLLERS = [
+    RandomController(),
+    UniformCostStubController(),
+    DepthFirstStubController(),
+    BreadthFirstStubController(),
+    AStarStubController(),
+]
+
+
+def get_controller_by_name(name: str):
+    """Helper to look up a controller instance by its display name."""
+    return next((c for c in CONTROLLERS if c.name == name), CONTROLLERS[0])
