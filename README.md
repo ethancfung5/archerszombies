@@ -12,21 +12,6 @@ It allows users to:
 
 The launcher works on **Windows**, **macOS**, and **Linux**.
 
----
-
-## ✨ Features
-
-* **Fullscreen Tkinter launcher** with dark theme
-* Dropdown for selecting controllers/policies
-* **Play button launches KAZ in a separate process** (important for macOS; prevents `Trace/BPT trap`)
-* Real-time log window showing episode progress & debug information
-* Keyboard shortcuts:
-
-  * `F11` → toggle fullscreen
-  * `Esc` → exit fullscreen
-
----
-
 ## 🚀 Getting Started
 
 ### 1. Clone the repository
@@ -35,8 +20,6 @@ The launcher works on **Windows**, **macOS**, and **Linux**.
 git clone https://github.com/yourusername/kaz-search-demo.git
 cd kaz-search-demo
 ```
-
----
 
 ### 2. Create & activate a virtual environment
 
@@ -60,8 +43,6 @@ Your shell prompt should now show:
 (.venv)
 ```
 
----
-
 ### 3. Install required dependencies
 
 PettingZoo’s KAZ environment (v10) lives in the **butterfly** family and requires Gymnasium + pygame.
@@ -73,41 +54,11 @@ pip install --upgrade pip
 pip install "pettingzoo[butterfly]>=1.24" "gymnasium==0.29.1" "pygame==2.6.1" numpy
 ```
 
-#### Why these exact versions?
-
-| Package                       | Reason                                                       |
-| ----------------------------- | ------------------------------------------------------------ |
-| `pettingzoo[butterfly]>=1.24` | Provides `knights_archers_zombies_v10` in the correct module |
-| `gymnasium==0.29.1`           | Version PettingZoo’s AEC API expects                         |
-| `pygame==2.6.1`               | Latest stable wheel for Windows/macOS (fixes mac SDL issues) |
-| `numpy`                       | Required by the environment and some controllers             |
-
----
-
 ### 4. Run the launcher
 
 ```bash
 python kaz_launcher.py
 ```
-
-This opens the full-screen menu.
-Choose any controller → click **Play**.
-
-Behind the scenes, the launcher runs the game via:
-
-```
-python kaz_launcher.py --run-game "<controller>"
-```
-
-You **do not** need to run this manually — the launcher handles it.
-
-This design ensures:
-
-* 🟢 Windows: works normally
-* 🟢 macOS: avoids SDL/Tk conflicts (`Trace/BPT trap: 5`)
-* 🟢 Linux: stable X11/Wayland behavior
-
----
 
 ## 🧠 Controllers
 
@@ -143,27 +94,6 @@ You can easily add new controllers by creating new modules and registering them 
 
 ---
 
-## 🔧 Technical Notes
-
-### Why the game launches in a separate process
-
-On macOS, launching pygame/SDL inside the same process as Tkinter often triggers:
-
-```
-Trace/BPT trap: 5
-```
-
-This comes from macOS’s requirement that GUI frameworks (Cocoa, SDL2) run on the **main thread**.
-
-To fix this:
-
-* The Tkinter launcher runs in the main process
-* The KAZ environment runs in a **separate Python process**
-
-This prevents all SDL/Tk collisions and works cross-platform.
-
----
-
 ## 📚 Learning Goals
 
 This project aims to teach:
@@ -181,12 +111,3 @@ This project is open-source under the MIT License.
 Feel free to fork, modify, and use it for coursework or research projects.
 
 ---
-
-If you want, I can also provide:
-
-* A polished `requirements.txt`
-* A badge section for GitHub
-* A CONTRIBUTING section
-* A folder structure diagram
-
-Just let me know!
