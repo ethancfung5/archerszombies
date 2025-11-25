@@ -8,6 +8,8 @@ from tkinter import ttk, messagebox
 # local imports from controllers package
 from controllers import CONTROLLERS, get_controller_by_name
 
+print("[KAZ] Launcher loaded from:", __file__)
+
 # ----------------------- PettingZoo import handling ----------------------------
 
 ENV_FACTORY = None
@@ -16,19 +18,63 @@ IMPORT_ERRORS = []
 
 
 def _make_factory(kaz_module):
-    """Return an env factory preferring env(render_mode=...), with safe fallbacks."""
+    """
+    Return an env factory preferring env(render_mode=...), with safe fallbacks.
+
+    We ALSO inject our custom KAZ settings here so every env is created with:
+      - vector_state=True
+      - use_typemasks=False
+      - 1 knight, no archers/swordsmen
+      - a few sword zombies
+    """
+    # Custom config you care about
+    CUSTOM_KWARGS = dict(
+        vector_state=True,
+        use_typemasks=False,   # keep current 5-column obs format
+        n_archers=0,
+        n_knights=1,
+        n_swordsmen=0,
+        n_archer_zombies=0,
+        n_knight_zombies=0,
+        n_sword_zombies=3,     # e.g., 3 zombies to fight
+        max_arrows=0,
+        max_zombies=3,         # at least total zombie slots
+    )
+
     def factory(render_mode="human"):
+        # Preferred: modern env API
         if hasattr(kaz_module, "env"):
+            # First, try full kwargs (v10 style)
             try:
-                return kaz_module.env(render_mode=render_mode)
-            except TypeError:
-                # older builds may not accept render_mode kwarg
-                return kaz_module.env()
+                kwargs = dict(CUSTOM_KWARGS)
+                kwargs["render_mode"] = render_mode
+                print("[KAZ] Creating env with kwargs:", kwargs)
+                return kaz_module.env(**kwargs)
+            except TypeError as e:
+                # Older builds (or v9) may not accept some kwargs
+                print(
+                    "[KAZ] env(**kwargs) TypeError, falling back to env(render_mode):",
+                    type(e).__name__, e,
+                )
+                try:
+                    return kaz_module.env(render_mode=render_mode)
+                except TypeError as e2:
+                    print(
+                        "[KAZ] env(render_mode=...) TypeError, falling back to bare env():",
+                        type(e2).__name__, e2,
+                    )
+                    return kaz_module.env()
+
+        # Fallbacks (raw_env / parallel_env) if no .env attribute
         if hasattr(kaz_module, "raw_env"):
+            print("[KAZ] Using raw_env() with default settings.")
             return kaz_module.raw_env()
         if hasattr(kaz_module, "parallel_env"):
+            print("[KAZ] Using parallel_env() with default settings.")
             return kaz_module.parallel_env()
+
         raise RuntimeError("No env/raw_env/parallel_env on KAZ module")
+
     return factory
 
 
@@ -55,12 +101,15 @@ def _try_imports():
             kaz = ns["kaz"]
             ENV_FACTORY = _make_factory(kaz)
             ENV_LABEL = label
+            print("[KAZ] Imported:", stmt, "->", label)
             return
         except Exception as e:
             IMPORT_ERRORS.append(f"{stmt} -> {type(e).__name__}: {e}")
+            print("[KAZ] Import failed:", stmt, "->", type(e).__name__, e)
 
     ENV_FACTORY = None
     ENV_LABEL = None
+    print("[KAZ] All imports failed.")
 
 
 _try_imports()
