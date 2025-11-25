@@ -3,32 +3,54 @@
 from .base_controller import BaseController
 import random
 
+# Implement a internal search problem to drive DFS
+class KazProblem:
+    def __init__(self, N=10):
+        # We’ll search from 0 up to N
+        self.N = N
+
+    def get_start_state(self, obs, agent):
+        # For now, ignore obs/agent and always start at 0
+        return 0
+
+    def is_goal(self, state):
+        # Goal is to reach state N
+        return state == self.N
+
+    def get_successors(self, state):
+        # Simple chain: 0 -> 1 -> 2 -> ... -> N
+        if state >= self.N:
+            return []
+        next_state = state + 1
+        # Use next_state as the "action" (1, 2, 3, ...)
+        return [(next_state, next_state)]
+
+
 
 class DepthFirstStubController(BaseController):
-    # Dropdown display
+    # This label appears in the dropdown
     name = "DFS"
 
     def __init__(self, problem=None):
         super().__init__()
-        # Optional search problem; can be set later from outside
+
+        # If a problem is passed in (for testing), use it.
+        # Otherwise, use our tiny KazProblem so DFS always has a graph.
         if problem is not None:
             self.problem = problem
         else:
-            self.problem = KazProblem()
-        # Planned sequence of actions from DFS
-        self._plan = []
-        # Track which agent the current plan belongs to
-        self._current_agent = None
+            self.problem = KazProblem(N=10)
 
-    # DFS implementation
+        # Each agent gets its own DFS plan: {agent_name: [actions...]}
+        self._plans = {}
+
     def _depth_first_search(self, start_state, is_goal_fn, successors_fn):
-        # Implementation of DFS using a stack
+        """
+        Basic depth-first search using an explicit stack.
+        Returns a list of actions from start_state to a goal, or [] if none.
+        """
         stack = [start_state]
-
-        # Keep track of parent states
-        parent = {start_state: None}
-
-        # Keep track of visited states
+        parent = {start_state: None}  # state -> (prev_state, action)
         visited = set()
 
         while stack:
@@ -38,9 +60,9 @@ class DepthFirstStubController(BaseController):
                 continue
             visited.add(state)
 
-            # Check if we found a goal
+            # Check goal
             if is_goal_fn(state):
-                # If so, construct a plan back to the start
+                # Reconstruct actions by walking parent pointers backwards
                 actions = []
                 cur = state
                 while parent[cur] is not None:
@@ -50,80 +72,56 @@ class DepthFirstStubController(BaseController):
                 actions.reverse()
                 return actions
 
-            # Expand successors in depth-first order
+            # Expand successors
             for next_state, action in successors_fn(state):
                 if next_state not in parent:
                     parent[next_state] = (state, action)
                     stack.append(next_state)
 
-        # If no goal is found, return an empty plan
+        # No goal found
         return []
 
-    # DFS plan computation
     def _compute_plan_with_dfs(self, obs, agent):
-        # If no problem is set, do nothing
-        if self.problem is None:
-            return []
-
-        # If problem is set, run DFS
+        # Get start state and goal check functions
         start_state = self.problem.get_start_state(obs, agent)
         is_goal_fn = self.problem.is_goal
         successors_fn = self.problem.get_successors
+        return self._depth_first_search(start_state, is_goal_fn, successors_fn)
 
-        plan = self._depth_first_search(start_state, is_goal_fn, successors_fn)
-        return plan
 
-    # Main DFS controller
     def __call__(self, obs, action_space, agent, t):
+        # Small debug once, just to prove DFS is running
         if t == 0 and agent == "archer_0":
-            print("[DFS] First call for agent:", agent)
-            print("    type(obs):", type(obs))
-            if isinstance(obs, dict):
-                print("    obs keys:", list(obs.keys()))
-        if t == 0 and agent == "knight_0":  # or any agent name you see
-            print("OBS TYPE:", type(obs))
-            if isinstance(obs, dict):
-                print("OBS KEYS:", list(obs.keys()))
-            print("FULL OBS:", obs)
-        # If we have a new agent or no plan, compute one
-        if agent != self._current_agent or not self._plan:
-            self._plan = self._compute_plan_with_dfs(obs, agent)
-            self._current_agent = agent
+            print("[DFS] First call for agent:", agent, "| obs type:", type(obs))
 
-        # If we have a DFS plan, try to use it
-        if self._plan:
-            planned_action = self._plan.pop(0)
+        # Get this agent's current plan (if any)
+        plan = self._plans.get(agent)
 
-            # If we have an action mask, check that the planned action is legal
-            if isinstance(obs, dict) and "action_mask" in obs:
-                mask = obs["action_mask"]
-                # Check that the planned action is legal
-                if 0 <= planned_action < len(mask) and mask[planned_action]:
-                    return planned_action
-                else:
-                    # If planned action is illegal, fall back to any legal action
-                    legal_actions = [i for i, m in enumerate(mask) if m]
-                    if legal_actions:
-                        return random.choice(legal_actions)
-                    # If there are no legal actions, sample randomly
-                    return action_space.sample()
+        # If this agent has no plan or the plan is empty, compute a new one
+        if not plan:
+            plan = self._compute_plan_with_dfs(obs, agent)
+            self._plans[agent] = plan
 
-            # No mask: just return the planned action
+        # If DFS produced a plan, use actions from it
+        if plan:
+            planned_action = plan.pop(0)  # consume first action
+
+            # Make sure the planned action is a valid index for this action space
+            n = getattr(action_space, "n", None)
+            if n is not None and n > 0:
+                planned_action = planned_action % n  # keep in [0, n-1]
+
+            # Debug: show what DFS decided
+            print(f"[DFS] Agent {agent} at t={t} -> action {planned_action}")
+
             return planned_action
 
-        # If we don't have a DFS plan, check if we have an action mask
-        if isinstance(obs, dict) and "action_mask" in obs:
-            mask = obs["action_mask"]
-            legal_actions = [i for i, m in enumerate(mask) if m]
-            if legal_actions:
-                return random.choice(legal_actions)
-
-        # If we don't have a DFS plan and no action mask, sample randomly
+        # Fallback: if DFS gave us no plan, just pick a random action
         return action_space.sample()
 
+# Standalone test
 if __name__ == "__main__":
-    # Tiny example to test DFS without KAZ
-
+    # Tiny example to test DFS without KAZ, using a slightly longer chain.
     class SimpleChainProblem:
         """
         Simple chain: states 0 -> 1 -> 2 -> ... -> N
@@ -134,7 +132,6 @@ if __name__ == "__main__":
             self.N = N
 
         def get_start_state(self, obs, agent):
-            # For this toy example, ignore obs and agent
             return 0
 
         def is_goal(self, state):
@@ -143,11 +140,8 @@ if __name__ == "__main__":
         def get_successors(self, state):
             if state >= self.N:
                 return []
-            # Next state is state+1; action is also (state+1) just for demo
-            return [(state + 1, state + 1)]
-
-    # Import controller here
-    #from dfs_controller import DepthFirstStubController  # adjust import if needed
+            next_state = state + 1
+            return [(next_state, next_state)]
 
     problem = SimpleChainProblem(N=5)
     dfs = DepthFirstStubController(problem=problem)
@@ -159,23 +153,3 @@ if __name__ == "__main__":
 
     print("DFS plan:", plan)
     # Expected something like: [1, 2, 3, 4, 5]
-
-class KazProblem:
-    def __init__(self, N=3):
-        self.N = N
-
-    def get_start_state(self, obs, agent):
-        # For now, we ignore obs and agent and always start at 0.
-        return 0
-
-    def is_goal(self, state):
-        # Goal is to reach state N.
-        return state == self.N
-
-    def get_successors(self, state):
-        if state >= self.N:
-            return []
-        next_state = state + 1
-        # Action is just the next state's index for this toy example
-        return [(next_state, next_state)]
-
