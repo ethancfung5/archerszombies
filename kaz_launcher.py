@@ -4,6 +4,7 @@ import os
 import subprocess
 import tkinter as tk
 from tkinter import ttk, messagebox
+import pygame
 
 # local imports from controllers package
 from controllers import CONTROLLERS, get_controller_by_name
@@ -174,6 +175,10 @@ def run_kaz(selected_controller_name: str, status_cb=print):
                 action = controller(obs, action_space, agent, t)
 
             env.step(action)
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
 
             if action is not None and hasattr(controller, "update_scores"):
                 try:
