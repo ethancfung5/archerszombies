@@ -4,9 +4,31 @@ import os
 import subprocess
 import tkinter as tk
 from tkinter import ttk, messagebox
+import pygame
 
 # local imports from controllers package
 from controllers import CONTROLLERS, get_controller_by_name
+
+try:
+    from kaz_helpers import get_zombie_positions, debug_print_world
+except Exception:
+    # if helpers not present yet, launcher still works
+    get_zombie_positions = None
+    debug_print_world = None
+
+
+# Default KAZ env kwargs
+KAZ_ENV_KWARGS = {
+    "num_archers": 0,
+    "num_knights": 2,
+    "max_zombies": 10,
+    "max_arrows": 10,
+    "spawn_rate": 15,        # a bit faster zombie spawns (optional)
+    "killable_knights": False,  # so they don't die instantly while testing
+    "killable_archers": False,
+    "vector_state": True,
+    "use_typemasks": False,
+}
 
 # ----------------------- PettingZoo import handling ----------------------------
 
@@ -17,19 +39,22 @@ IMPORT_ERRORS = []
 
 def _make_factory(kaz_module):
     """Return an env factory preferring env(render_mode=...), with safe fallbacks."""
-    def factory(render_mode="human"):
+    def factory(render_mode="human", **env_kwargs):
         if hasattr(kaz_module, "env"):
             try:
-                return kaz_module.env(render_mode=render_mode)
+                return kaz_module.env(render_mode=render_mode, **env_kwargs)
             except TypeError:
-                # older builds may not accept render_mode kwarg
-                return kaz_module.env()
+                return kaz_module.env(**env_kwargs)
         if hasattr(kaz_module, "raw_env"):
-            return kaz_module.raw_env()
+            try:
+                return kaz_module.raw_env(render_mode=render_mode, **env_kwargs)
+            except TypeError:
+                return kaz_module.raw_env(**env_kwargs)
         if hasattr(kaz_module, "parallel_env"):
-            return kaz_module.parallel_env()
+            return kaz_module.parallel_env(**env_kwargs)
         raise RuntimeError("No env/raw_env/parallel_env on KAZ module")
     return factory
+
 
 
 def _try_imports():
@@ -100,14 +125,14 @@ def run_kaz(selected_controller_name: str, status_cb=print):
     last_err = None
     for mode in ("human", None):
         try:
-            env = ENV_FACTORY(render_mode=mode)
+            env = ENV_FACTORY(render_mode = mode, **KAZ_ENV_KWARGS)
             break
         except Exception as e:
             last_err = e
     if env is None:
         status_cb(f"Render creation failed: {last_err}")
         return
-
+    status_cb(f"Agents in env: {env.possible_agents}")
     try:
         try:
             env.reset(seed=123)
@@ -115,8 +140,19 @@ def run_kaz(selected_controller_name: str, status_cb=print):
             env.reset()
 
         t = 0
+        running = True
         for agent in env.agent_iter():
+            if not running:
+                break
+            
             obs, reward, termination, truncation, info = env.last(observe=True)
+
+            # debug statement
+            if debug_print_world is not None and t < 10 and agent.startswith("knight"):
+                debug_print_world(obs, header=f"[DEBUG t={t} agent={agent}]")
+
+            if debug_print_world is not None and t < 3 and agent.endswith("0"):
+                debug_print_world(obs, header=f"[DEBUG t={t} agent={agent}]")
 
             if termination or truncation:
                 action = None  # PettingZoo convention when done
