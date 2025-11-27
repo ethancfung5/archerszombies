@@ -1,78 +1,113 @@
-# Knights–Archers–Zombies (KAZ) Demo with Search Controllers  
+# Knights–Archers–Zombies (KAZ) Search Demo
 
-This project demonstrates the **Knights–Archers–Zombies (KAZ)** environment from [PettingZoo](https://www.pettingzoo.ml/) with different search algorithms and controllers.  
-It includes a **full-screen launcher menu** built with Tkinter that allows you to select a search method and launch the game with a single click.  
+*A cross-platform Tkinter launcher for the PettingZoo KAZ environment with pluggable search controllers*
 
----
+This project provides a **full-screen launcher UI** for the **Knights–Archers–Zombies (KAZ)** environment from the [PettingZoo](https://pettingzoo.farama.org) library.
+It allows users to:
 
-## 🎮 Features  
+* Select a search controller (Random, Greedy, DFS, BFS, A*, etc.)
+* Launch the KAZ game in a **separate process** (required for macOS stability)
+* View status logs during gameplay
+* Play the simulation through a clean fullscreen menu
 
-- **Full-screen home menu** with dark theme and clean layout.  
-- Dropdown to select the search controller (Random, Greedy heuristic, DFS, BFS, A* stubs).  
-- **Play button** launches the KAZ game in a new window.  
-- Status box logs events (episode progress, errors, etc.).  
-- Keyboard shortcuts:  
-  - `F11` → Toggle full-screen  
-  - `Esc` → Exit full-screen  
+The launcher works on **Windows**, **macOS**, and **Linux**.
 
----
+## 🚀 Getting Started
 
-## 🚀 Getting Started  
-
-### 1. Clone the repository  
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/yourusername/kaz-search-demo.git
 cd kaz-search-demo
 ```
 
-### 2. Create a virtual environment  
+### 2. Create & activate a virtual environment
+
+#### macOS / Linux:
 
 ```bash
-python -m venv .venv
-# Windows
-.venv\Scripts\activate
-# macOS/Linux
+python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-### 3. Install dependencies  
+#### Windows:
 
-```bash
-pip install pettingzoo pygame numpy
+```powershell
+python -m venv .venv
+.venv\Scripts\activate
 ```
 
-### 4. Run the launcher  
+Your shell prompt should now show:
+
+```
+(.venv)
+```
+
+### 3. Install required dependencies
+
+PettingZoo’s KAZ environment (v10) lives in the **butterfly** family and requires Gymnasium + pygame.
+
+Install everything with:
+
+```bash
+pip install --upgrade pip
+pip install "pettingzoo[butterfly]>=1.24" "gymnasium==0.29.1" "pygame==2.6.1" numpy
+```
+
+### 4. Run the launcher
 
 ```bash
 python kaz_launcher.py
 ```
 
----
+## 🧠 Controllers
 
-## 🧠 Controllers  
+Controllers live in the `controllers/` package and follow a simple interface:
 
-The project will support several **controllers/policies**:  
+```python
+action = controller(observation, action_space, agent_name, timestep)
+```
 
----
+Included stubs:
 
-## 📸 Screenshots  
+* Random
+* Greedy Heuristic
+* Depth-First Search (DFS)
+* Breadth-First Search (BFS)
+* Uniform-Cost / Dijkstra (stub)
+* A* Search (stub)
 
-![alt text](images/HomeScreen.png)
-
-![alt text](/images/KAZ_pic.png)
-
----
-
-
-## 📚 Learning Goals  
-
-- Understand the basics of **PettingZoo environments**.  
-- Learn how **search algorithms** (DFS, BFS, A*, greedy) can be adapted to a multi-agent environment.  
-- Explore **UI integration** (Tkinter) for game simulations.  
+You can easily add new controllers by creating new modules and registering them in
+`controllers/__init__.py`.
 
 ---
 
-## 📜 License  
+## 🖼️ Screenshots
 
-This project is open-source under the MIT License.  
+### Launcher Home Screen
+
+![Launcher](images/HomeScreen.png)
+
+### In-Game KAZ Environment
+
+![KAZ](images/KAZ_pic.png)
+
+---
+
+## 📚 Learning Goals
+
+This project aims to teach:
+
+* How to work with **PettingZoo**’s multi-agent API
+* How to adapt **search algorithms** (DFS, BFS, A*, greedy) to multi-agent game environments
+* How to integrate **Tkinter UI** with external simulations
+* How to build safe, cross-platform GUI pipelines using process isolation
+
+---
+
+## 📜 License
+
+This project is open-source under the MIT License.
+Feel free to fork, modify, and use it for coursework or research projects.
+
+---
