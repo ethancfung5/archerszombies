@@ -4,7 +4,7 @@ from .random_controller import RandomController
 from .uniform_cost_search import UniformCostStubController
 from .dfs_controller import DepthFirstStubController
 from .bfs_controller import BreadthFirstStubController
-from .astar_controller import AStarStubController
+from .astar_controller import AStarController
 
 # Registry to populate the dropdown
 CONTROLLERS = [
@@ -12,7 +12,7 @@ CONTROLLERS = [
     UniformCostStubController(),
     DepthFirstStubController(),
     BreadthFirstStubController(),
-    AStarStubController(),
+    AStarController(),
 ]
 
 
