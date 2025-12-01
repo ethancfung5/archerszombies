@@ -1,7 +1,7 @@
 # controllers/__init__.py
 
 from .random_controller import RandomController
-from .uniform_cost_search import UniformCostStubController
+from .greedy_search import GreedyController
 from .dfs_controller import DepthFirstStubController
 from .bfs_controller import BreadthFirstStubController
 from .astar_controller import AStarStubController
@@ -9,7 +9,7 @@ from .astar_controller import AStarStubController
 # Registry to populate the dropdown
 CONTROLLERS = [
     RandomController(),
-    UniformCostStubController(),
+    GreedyController(),
     DepthFirstStubController(),
     BreadthFirstStubController(),
     AStarStubController(),
