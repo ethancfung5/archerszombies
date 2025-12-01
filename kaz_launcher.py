@@ -208,6 +208,7 @@ def run_kaz(selected_controller_name: str, status_cb=print):
                 max_arrows=1000,
                 vector_state=True,
                 use_typemasks=True,
+                max_zombies=1,
             )
             break
         except Exception as e:
