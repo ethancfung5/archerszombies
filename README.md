@@ -17,8 +17,8 @@ The launcher works on **Windows**, **macOS**, and **Linux**.
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/kaz-search-demo.git
-cd kaz-search-demo
+git clone https://github.com/ethancfung5/archerszombies.git
+cd archerszombies
 ```
 
 ### 2. Create & activate a virtual environment
