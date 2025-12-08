@@ -11,13 +11,6 @@ import numpy as np
 # local imports from controllers package
 from controllers import CONTROLLERS, get_controller_by_name
 
-try:
-    from kaz_helpers import get_zombie_positions, debug_print_world
-except Exception:
-    # if helpers not present yet, launcher still works
-    get_zombie_positions = None
-    debug_print_world = None
-
 # ----------------------- PettingZoo import handling ----------------------------
 
 ENV_FACTORY = None
@@ -239,13 +232,6 @@ def run_kaz(selected_controller_name: str, status_cb=print):
                 break
 
             obs, reward, termination, truncation, info = env.last(observe=True)
-
-            # debug statement
-            if debug_print_world is not None and t < 10 and agent.startswith("knight"):
-                debug_print_world(obs, header=f"[DEBUG t={t} agent={agent}]")
-
-            if debug_print_world is not None and t < 3 and agent.endswith("0"):
-                debug_print_world(obs, header=f"[DEBUG t={t} agent={agent}]")
 
             if termination or truncation:
                 action = None  # PettingZoo convention when done
