@@ -13,23 +13,35 @@ Coord = Tuple[int, int]
 
 class BreadthFirstStubController(BaseController):
     """
-    TRUE BFS controller that plans on a small local grid toward the closest zombie.
+    Breadth-First Search (BFS) controller that plans on a small agent-centric grid
+    toward the closest visible zombie.
 
-    - Knights and archers both:
-        * find the closest zombie,
-        * run BFS on a local grid from agent (0,0) to the zombie's local rel_x, rel_y,
-        * take the NEXT grid cell on that path as a waypoint,
-        * steer toward that waypoint using MovementHelper.
+    High-level behaviour
+    --------------------
+    - For both knights and archers:
+        * Identify the closest zombie in the local observation.
+        * Project the zombie's relative (x, y) position onto a discrete grid.
+        * Run BFS from the agent at (0, 0) to that grid cell.
+        * Take ONLY the next grid cell as a waypoint in local coordinates.
+        * Use MovementHelper to steer toward the waypoint and decide whether to attack.
 
-    - Uses proper movement + attack geometry from MovementHelper.
+    - Movement and attack thresholds are role-dependent and implemented inside
+      MovementHelper.
     """
 
     name = "BFS (grid chase 2D)"
 
-    CELL_SIZE = 0.1
-    GRID_RADIUS = 10
+    CELL_SIZE = 0.1       # size of each grid cell in environment units
+    GRID_RADIUS = 10      # grid spans [-R, R] in both x and y
+    DEBUG = False         # set to True for detailed console logging
 
+    # ----------------------------------------------------------------------
+    # PUBLIC ENTRY POINT
+    # ----------------------------------------------------------------------
     def __call__(self, obs, action_space, agent, t):
+        """
+        Main controller entry. Dispatches to a role-specific BFS policy.
+        """
         arr = np.asarray(obs, dtype=float)
 
         if agent.startswith("knight_"):
@@ -37,7 +49,8 @@ class BreadthFirstStubController(BaseController):
         elif agent.startswith("archer_"):
             return self._act_with_bfs(arr, action_space, agent, t, role="archer")
         else:
-            return action_space.sample()
+            # Fallback for unexpected agent types.
+            return MovementHelper.noop_or_default(action_space)
 
     # ----------------------------------------------------------------------
     # MAIN LOGIC
@@ -45,89 +58,113 @@ class BreadthFirstStubController(BaseController):
     def _act_with_bfs(self, arr, action_space, agent, t, role: str):
         label = f"BFS 2D {role.upper()}"
 
-        print("\n" + "=" * 70)
-        print(f"[{label}] t = {t}, agent = {agent}")
-        print(f"[{label}] obs shape = {arr.shape}")
-        print("-" * 70)
+        if self.DEBUG:
+            print("\n" + "=" * 70)
+            print(f"[{label}] t = {t}, agent = {agent}")
+            print(f"[{label}] obs shape = {arr.shape}")
+            print("-" * 70)
 
-        parsed = self._parse_obs_or_noop(arr, action_space, role)
+        parsed = self._parse_obs_or_noop(arr)
         if parsed is None:
+            if self.DEBUG:
+                print(f"[{label}] invalid obs -> NOOP")
             return MovementHelper.noop_or_default(action_space)
 
         typemasks, dists, rel, ang = parsed
 
-        # Log context
-        self._debug_log_obs(arr, typemasks, role)
+        if self.DEBUG:
+            self._debug_log_obs(arr, typemasks, role)
 
         # Self state (row 0)
         self_heading_x, self_heading_y = ang[0]
         self_pos_x, self_pos_y = rel[0]
 
-        print(f"[{label}] self pos=({self_pos_x:.3f},{self_pos_y:.3f})")
-        print(f"[{label}] self heading=({self_heading_x:.3f},{self_heading_y:.3f})")
+        if self.DEBUG:
+            print(f"[{label}] self pos=({self_pos_x:.3f},{self_pos_y:.3f})")
+            print(f"[{label}] self heading=({self_heading_x:.3f},{self_heading_y:.3f})")
 
         # ------------------------------------------------------------------
-        # FIND CLOSEST ZOMBIE
+        # SELECT TARGET ZOMBIE
         # ------------------------------------------------------------------
-        target_info = self._select_closest_zombie(typemasks, dists, rel, ang, role)
+        target_info = self._select_closest_zombie(typemasks, dists, rel, ang)
         if target_info is None:
-            print(f"[{label}] no zombies visible -> NOOP")
+            if self.DEBUG:
+                print(f"[{label}] no zombies visible -> NOOP")
             return MovementHelper.noop_or_default(action_space)
 
         closest_idx, dist_to_zombie, (z_rx, z_ry), _ = target_info
 
-        print(f"[{label}] closest zombie rel=({z_rx:.3f},{z_ry:.3f}) dist={dist_to_zombie:.3f}")
+        if self.DEBUG:
+            print(
+                f"[{label}] closest zombie rel=({z_rx:.3f},{z_ry:.3f}) "
+                f"dist={dist_to_zombie:.3f}"
+            )
 
         # ------------------------------------------------------------------
-        # BFS PLANNING
+        # BFS PLANNING ON LOCAL GRID
         # ------------------------------------------------------------------
         next_step_rel = self._compute_bfs_step(
             goal_rel=(z_rx, z_ry),
             label=label,
         )
 
+        # If BFS fails (e.g., numerical edge cases), fall back to direct chase.
         if next_step_rel is None:
-            print(f"[{label}] BFS failed -> using direct chase")
+            if self.DEBUG:
+                print(f"[{label}] BFS failed -> using direct chase")
             target_rel = (z_rx, z_ry)
         else:
             target_rel = next_step_rel
-            print(f"[{label}] next waypoint = {target_rel}")
+            if self.DEBUG:
+                print(f"[{label}] next waypoint = {target_rel}")
 
         # ------------------------------------------------------------------
-        # MOVEMENT USING WAYPOINT (attack uses dist_to_zombie)
+        # MOVEMENT + ATTACK
+        #   - Movement uses the BFS waypoint.
+        #   - Attack uses the *true* distance to the zombie.
         # ------------------------------------------------------------------
         action = MovementHelper.steer_towards_target(
             role=role,
-            dist=dist_to_zombie,         # attack distance based on REAL zombie
-            target_rel=target_rel,       # but movement based on waypoint
+            dist=dist_to_zombie,
+            target_rel=target_rel,
             self_heading=(self_heading_x, self_heading_y),
             action_space=action_space,
-            label=label,
+            label=label if self.DEBUG else None,
         )
 
-        print("=" * 70)
+        if self.DEBUG:
+            print("=" * 70)
+
         return action
 
     # ----------------------------------------------------------------------
     # BFS PLANNING
     # ----------------------------------------------------------------------
-    def _compute_bfs_step(self, goal_rel, label):
+    def _compute_bfs_step(self, goal_rel: Tuple[float, float], label: str
+                          ) -> Optional[Tuple[float, float]]:
+        """
+        Run BFS on a small integer grid from (0, 0) to the projected goal cell.
+        Returns the *next* waypoint in continuous local coordinates,
+        or None if no path is found.
+        """
         gx, gy = goal_rel
         cell_size = self.CELL_SIZE
         R = self.GRID_RADIUS
 
+        # Project goal onto grid and clamp to local planning radius.
         goal_ix = int(round(gx / cell_size))
         goal_iy = int(round(gy / cell_size))
 
-        # Clamp goal to grid
         goal_ix = max(-R, min(R, goal_ix))
         goal_iy = max(-R, min(R, goal_iy))
 
         start: Coord = (0, 0)
         goal: Coord = (goal_ix, goal_iy)
 
-        print(f"[{label}] BFS grid start={start} goal={goal}")
+        if self.DEBUG:
+            print(f"[{label}] BFS grid start={start} goal={goal}")
 
+        # If the projected goal is at the origin, just move directly toward it.
         if start == goal:
             return goal_rel
 
@@ -138,16 +175,22 @@ class BreadthFirstStubController(BaseController):
         next_cell = path[1]
         nx, ny = next_cell
 
+        # Convert back into local continuous coordinates.
         return (nx * cell_size, ny * cell_size)
 
-    def _bfs_grid_search(self, start, goal, R, label):
-        neighbors = [(1,0),(-1,0),(0,1),(0,-1)]
+    def _bfs_grid_search(self, start: Coord, goal: Coord, R: int, label: str
+                         ) -> Optional[List[Coord]]:
+        """
+        Standard BFS on a bounded 4-connected grid:
+        states are integer (x, y) with -R <= x,y <= R.
+        """
+        neighbors = [(1, 0), (-1, 0), (0, 1), (0, -1)]
 
-        def in_bounds(x, y):
+        def in_bounds(x: int, y: int) -> bool:
             return -R <= x <= R and -R <= y <= R
 
         queue = deque([start])
-        came_from = {start: None}
+        came_from: Dict[Coord, Optional[Coord]] = {start: None}
 
         while queue:
             current = queue.popleft()
@@ -166,11 +209,16 @@ class BreadthFirstStubController(BaseController):
                 came_from[neighbor] = current
                 queue.append(neighbor)
 
-        print(f"[{label}] BFS could not reach {goal}")
+        if self.DEBUG:
+            print(f"[{label}] BFS could not reach {goal}")
         return None
 
     @staticmethod
-    def _reconstruct_path(came_from, current):
+    def _reconstruct_path(came_from: Dict[Coord, Optional[Coord]],
+                          current: Coord) -> List[Coord]:
+        """
+        Reconstruct path from start to current using the 'came_from' map.
+        """
         path = [current]
         while came_from[current] is not None:
             current = came_from[current]
@@ -179,11 +227,25 @@ class BreadthFirstStubController(BaseController):
         return path
 
     # ----------------------------------------------------------------------
-    # ZOMBIE SELECTION  (THIS WAS MISSING IN YOUR ERROR)
+    # ZOMBIE SELECTION
     # ----------------------------------------------------------------------
-    def _select_closest_zombie(self, typemasks, dists, rel, ang, role):
+    def _select_closest_zombie(self,
+                               typemasks: np.ndarray,
+                               dists: np.ndarray,
+                               rel: np.ndarray,
+                               ang: np.ndarray):
+        """
+        Select the closest zombie based on distance.
+
+        Assumes:
+        - Row 0 is the agent itself.
+        - Zombies are encoded in typemasks[:, 0] (first type channel > 0.5).
+        - Other agents (knights/archers) occupy different type channels and
+          are therefore ignored.
+        """
         rows = typemasks.shape[0]
 
+        # Mask out self (row 0) and select rows where "zombie" channel is active.
         zombie_mask = np.zeros(rows, dtype=bool)
         zombie_mask[1:] = typemasks[1:, 0] > 0.5
         zombie_indices = np.where(zombie_mask)[0]
@@ -199,19 +261,31 @@ class BreadthFirstStubController(BaseController):
         return closest_idx, dist, (rx, ry), (ax, ay)
 
     # ----------------------------------------------------------------------
-    # OBS PARSING
+    # OBSERVATION PARSING
     # ----------------------------------------------------------------------
-    def _parse_obs_or_noop(self, arr, action_space, role):
+    def _parse_obs_or_noop(self, arr: np.ndarray):
+        """
+        Parse the raw observation into (typemasks, dists, rel, ang).
+
+        Expected layout per row:
+        - columns 0..5   : typemasks (entity type one-hot / soft mask)
+        - column  6      : distance
+        - columns 7..8   : rel_x, rel_y
+        - columns 9..10  : ang_x, ang_y
+        """
         if arr.ndim != 2 or arr.shape[1] < 11:
             return None
         return (
-            arr[:, :6],        # typemasks
-            arr[:, 6],         # dists
-            arr[:, 7:9],       # rel_x, rel_y
-            arr[:, 9:11],      # ang_x, ang_y
+            arr[:, :6],       # typemasks
+            arr[:, 6],        # dists
+            arr[:, 7:9],      # rel_x, rel_y
+            arr[:, 9:11],     # ang_x, ang_y
         )
 
-    def _debug_log_obs(self, arr, typemasks, role):
+    def _debug_log_obs(self, arr: np.ndarray, typemasks: np.ndarray, role: str):
+        """
+        Debug helper to print the first few rows of the observation.
+        """
         rows = arr.shape[0]
         maxp = min(rows, 5)
         print(f"[BFS 2D {role.upper()}] printing first {maxp} rows:")
