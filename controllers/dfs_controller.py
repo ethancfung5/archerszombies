@@ -11,36 +11,12 @@ from .movement_helper import MovementHelper
 Coord = Tuple[int, int]
 
 
-class DepthFirstStubController(BaseController):
-    """
-    Depth-First Search (DFS) pathfinding controller on a simple 2D grid
-    in the agent's LOCAL frame.
-
-    - Knights and archers both:
-        * find the closest zombie,
-        * run DFS on a local grid from agent (0,0) to the zombie's local position,
-        * take the NEXT grid cell on that path as a waypoint,
-        * steer toward that waypoint using MovementHelper.
-
-    Observation format (vector_state + typemasks assumed):
-      per-row: [typemask(6), dist, rel_x, rel_y, ang_x, ang_y]
-      typemask: [zombie, archer, knight, sword, arrow, self]
-
-    Action mapping:
-        0 = forward
-        1 = backward
-        2 = counterclockwise
-        3 = clockwise
-        4 = attack
-        5 = noop
-    """
+class DepthFirstSearchController(BaseController):
 
     name = "DFS (grid chase 2D)"
 
     CELL_SIZE = 0.1      # world units per grid cell in local frame
     GRID_RADIUS = 10     # plan on [-R..R] x [-R..R]
-
-    # ------------------------- MAIN ENTRYPOINT -------------------------
 
     def __call__(self, obs, action_space, agent, t):
         arr = np.asarray(obs, dtype=float)
@@ -52,8 +28,6 @@ class DepthFirstStubController(BaseController):
         else:
             # zombies/arrows/etc.
             return action_space.sample()
-
-    # ------------------------- HIGH-LEVEL LOGIC ------------------------
 
     def _act_with_dfs(self, arr, action_space, agent, t, role: str):
         label = f"DFS 2D {role.upper()}"
@@ -71,7 +45,6 @@ class DepthFirstStubController(BaseController):
 
         self._debug_log_obs(arr, typemasks, role)
 
-        # ---- self row ----
         self_typemask = typemasks[self_idx]
         self_pos_x, self_pos_y = rel[self_idx]
         self_heading_x, self_heading_y = ang[self_idx]
@@ -81,7 +54,7 @@ class DepthFirstStubController(BaseController):
         print(f"[{label}] self pos      = ({self_pos_x:.3f},{self_pos_y:.3f})")
         print(f"[{label}] self heading  = ({self_heading_x:.3f},{self_heading_y:.3f})")
 
-        # ---- choose target: closest zombie ----
+        # target closest zombie
         target_info = self._select_closest_zombie(typemasks, dists, rel, ang, role, self_idx)
         if target_info is None:
             print(f"[{label}] no zombies visible -> NOOP")
@@ -95,9 +68,7 @@ class DepthFirstStubController(BaseController):
             f"ang=({zx_ang_x:.3f},{zx_ang_y:.3f})"
         )
 
-        # ------------------------------------------------------------------
-        # DFS planning in local frame
-        # ------------------------------------------------------------------
+        # dfs planning
         next_step_rel = self._compute_dfs_step(
             goal_rel=(z_rx, z_ry),
             label=label,
@@ -115,9 +86,7 @@ class DepthFirstStubController(BaseController):
                 f"({step_rx:.3f},{step_ry:.3f}), step_dist={step_dist:.3f}"
             )
 
-        # ------------------------------------------------------------------
-        # Movement + attack
-        # ------------------------------------------------------------------
+        # movement and attack
         action = MovementHelper.steer_towards_target(
             role=role,
             dist=dist_to_zombie,
@@ -130,9 +99,7 @@ class DepthFirstStubController(BaseController):
         print("=" * 70)
         return action
 
-    # ------------------------------------------------------------------
-    #  DFS ON LOCAL GRID (goal-directed)
-    # ------------------------------------------------------------------
+    # dfs local grid - goal directed
 
     def _compute_dfs_step(
         self,
@@ -140,45 +107,62 @@ class DepthFirstStubController(BaseController):
         label: str,
     ) -> Optional[Tuple[float, float]]:
         """
-        Run DFS from (0,0) to goal_rel (rx, ry) in local coordinates.
+        Convert the continuous local goal position (goal_rel) into a discrete
+        grid coordinate, then run **Depth-First Search (DFS)** on that grid
+        from start=(0, 0) to goal=(goal_ix, goal_iy).
 
-        - Grid covers [-GRID_RADIUS .. +GRID_RADIUS].
-        - Each cell = CELL_SIZE units.
+        - Grid domain: [-GRID_RADIUS .. +GRID_RADIUS] x [-GRID_RADIUS .. +GRID_RADIUS]
+        - Each cell is CELL_SIZE world units.
+
+        Returns
+        -------
+        next_step_rel : (float, float) or None
+            The next waypoint in local coordinates (one grid step along the DFS path),
+            or None if DFS fails to find a path.
         """
         gx, gy = goal_rel
         cell_size = self.CELL_SIZE
         R = self.GRID_RADIUS
 
+        # discretize goal into grid coordinates
         goal_ix = int(round(gx / cell_size))
         goal_iy = int(round(gy / cell_size))
 
-        # clamp to window
+        # clamp to the planning window
         goal_ix = max(-R, min(R, goal_ix))
         goal_iy = max(-R, min(R, goal_iy))
 
         start: Coord = (0, 0)
         goal: Coord = (goal_ix, goal_iy)
 
-        print(f"[{label}] planning (DFS) from {start} to {goal} on grid "
-              f"[-{R}..{R}] with cell_size={cell_size}")
+        print(
+            f"[{label}] DFS planning on grid [-{R}..{R}]^2 with cell_size={cell_size}: "
+            f"start={start} -> goal={goal}"
+        )
 
         if start == goal:
-            print(f"[{label}] start == goal in grid; direct target.")
+            print(f"[{label}] start == goal in grid; using direct target.")
             return goal_rel
 
         path = self._dfs_grid_search(start, goal, R, label)
 
         if not path or len(path) < 2:
-            print(f"[{label}] DFS found no path or trivial path={path}")
+            print(f"[{label}] DFS found no usable path: {path}")
             return None
 
+        # path is a sequence of grid cells; we take the second element
+        # as "next step" (first is start itself).
         next_cell = path[1]
         nx, ny = next_cell
 
         next_rx = nx * cell_size
         next_ry = ny * cell_size
 
-        print(f"[{label}] DFS path (first few): {path[:5]}")
+        print(f"[{label}] DFS path (first few cells): {path[:5]}")
+        print(
+            f"[{label}] next DFS waypoint in local frame: "
+            f"({next_rx:.3f}, {next_ry:.3f})"
+        )
         return (next_rx, next_ry)
 
     def _dfs_grid_search(
@@ -189,9 +173,25 @@ class DepthFirstStubController(BaseController):
         label: str,
     ) -> Optional[List[Coord]]:
         """
-        DFS on a bounded 4-neighbor grid [-R..R] x [-R..R], but we
-        ORDER neighbors by distance to the goal so DFS dives toward
-        the goal instead of straight down.
+        Depth-First Search (DFS) on a bounded 4-neighbor grid.
+
+        Grid:
+            [-R .. R] x [-R .. R]
+
+        Neighbors:
+            4-connected: (±1, 0), (0, ±1)
+
+        Implementation details:
+            - Uses an explicit LIFO stack (list + pop()).
+            - Each step:
+                * pop() current cell
+                * generate neighbors
+                * push unexplored neighbors on the stack
+            This is **true DFS**, not BFS or Dijkstra.
+
+            Neighbors are ordered by Euclidean distance to the goal so that
+            DFS tends to "dive" toward the goal first, but the search pattern
+            is still depth-first because of the stack.
         """
         base_neighbors = [(1, 0), (-1, 0), (0, 1), (0, -1)]
 
@@ -203,15 +203,19 @@ class DepthFirstStubController(BaseController):
             dy = a[1] - b[1]
             return (dx * dx + dy * dy) ** 0.5
 
+        # LIFO stack = DFS frontier
         stack: List[Coord] = [start]
         came_from: Dict[Coord, Optional[Coord]] = {start: None}
         visited: Set[Coord] = {start}
 
+        print(f"[{label}][DFS] start={start}, goal={goal}, R={R}")
+
         while stack:
-            current = stack.pop()
+            current = stack.pop()   # <-- DFS core: pop from stack
+            print(f"[{label}][DFS] pop {current} from stack")
 
             if current == goal:
-                print(f"[{label}] DFS reached goal at {current}")
+                print(f"[{label}][DFS] reached goal at {current}")
                 return self._reconstruct_path(came_from, current)
 
             cx, cy = current
@@ -228,19 +232,21 @@ class DepthFirstStubController(BaseController):
                 h = heuristic(neighbor, goal)
                 candidates.append((neighbor, h))
 
-            # Sort so that the *closest* neighbor ends up popped first.
-            # We push in descending heuristic order so the smallest h is on top.
+            # Order neighbors by heuristic distance so the one closer to goal
+            # is explored first (still DFS because of the stack).
             candidates.sort(key=lambda x: x[1], reverse=True)
 
-            for neighbor, _h in candidates:
+            for neighbor, h in candidates:
                 if neighbor in visited:
                     continue
                 visited.add(neighbor)
                 came_from[neighbor] = current
-                stack.append(neighbor)
+                stack.append(neighbor)  # <-- DFS: push onto stack
+                print(f"[{label}][DFS]   push neighbor={neighbor} (h={h:.3f})")
 
-        print(f"[{label}] DFS exhausted frontier; no path to {goal}")
+        print(f"[{label}][DFS] exhausted stack; no path to {goal}")
         return None
+
 
     @staticmethod
     def _reconstruct_path(
@@ -254,9 +260,7 @@ class DepthFirstStubController(BaseController):
         path.reverse()
         return path
 
-    # ------------------------------------------------------------------
-    #  OBSERVATION UTILITIES
-    # ------------------------------------------------------------------
+    # observation utilities
 
     def _parse_vector_obs(self, arr, role):
         """

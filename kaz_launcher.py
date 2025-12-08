@@ -18,20 +18,6 @@ except Exception:
     get_zombie_positions = None
     debug_print_world = None
 
-
-# Default KAZ env kwargs
-KAZ_ENV_KWARGS = {
-    "num_archers": 0,
-    "num_knights": 2,
-    "max_zombies": 10,
-    "max_arrows": 10,
-    "spawn_rate": 15,        # a bit faster zombie spawns (optional)
-    "killable_knights": False,  # so they don't die instantly while testing
-    "killable_archers": False,
-    "vector_state": True,
-    "use_typemasks": False,
-}
-
 # ----------------------- PettingZoo import handling ----------------------------
 
 ENV_FACTORY = None
@@ -229,8 +215,9 @@ def run_kaz(selected_controller_name: str, status_cb=print):
                 num_knights=1,
                 max_arrows=1000,
                 vector_state=True,
+                spawn_rate=5,
                 use_typemasks=True,
-                max_zombies=1,
+                max_zombies=3,
             )
             break
         except Exception as e:

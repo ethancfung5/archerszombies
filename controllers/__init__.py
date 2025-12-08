@@ -2,7 +2,7 @@
 
 from .random_controller import RandomController
 from .greedy_search import GreedyController
-from .dfs_controller import DepthFirstStubController
+from .dfs_controller import DepthFirstSearchController
 from .bfs_controller import BreadthFirstStubController
 from .astar_controller import AStarController
 
@@ -10,7 +10,7 @@ from .astar_controller import AStarController
 CONTROLLERS = [
     RandomController(),
     GreedyController(),
-    DepthFirstStubController(),
+    DepthFirstSearchController(),
     BreadthFirstStubController(),
     AStarController(),
 ]
