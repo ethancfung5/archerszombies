@@ -6,29 +6,23 @@ class GreedyController(BaseController):
     """
     Greedy controller for Knights & Archers vs Zombies.
 
-    Action mapping:
-      0 -> move forward
-      1 -> move downward
-      2 -> turn CCW
-      3 -> turn CW
-      4 -> attack
-      5 -> do nothing
+
     """
 
     name = "Greedy Search"
 
     # --- Knight thresholds ---
-    KNIGHT_ATTACK_DIST   = 0.06   # knight must be very close to attack
-    KNIGHT_ALIGN_EPS     = 0.03
+    KNIGHT_ATTACK_DIST   = 0.06   # Distance for knight to attack
+    KNIGHT_ALIGN_EPS     = 0.03   # Aims knight at zombie
 
     # --- Archer thresholds ---
-    ARCHER_TOO_CLOSE     = 0.12   # retreat if closer than this
-    ARCHER_OPTIMAL_MAX   = 0.40   # if farther than this, move closer
-    ARCHER_ALIGN_EPS     = 0.03   # angular tolerance
-    LEAD_FACTOR          = 0.35   # how far ahead to aim
+    ARCHER_TOO_CLOSE     = 0.12   # Retreat if zombie is close
+    ARCHER_OPTIMAL_MAX   = 0.40   # Move closer to zombie if too far
+    ARCHER_ALIGN_EPS     = 0.03   # Aims archer at zombie
+    LEAD_FACTOR          = 0.35   # Shoot in front of zombie
 
     # --- Shared ---
-    MIN_DIST_NOISE       = 0.02   # ignore tiny distances
+    MIN_DIST_NOISE       = 0.02
 
     def __call__(self, obs, action_space, agent, t):
         obs = np.asarray(obs, dtype=float)
@@ -84,7 +78,6 @@ class GreedyController(BaseController):
         # 3. Lead vector for archer
         # -----------------------------
 
-        # Aim slightly ahead of the zombie (downwards),
         ry_lead = ry + self.LEAD_FACTOR * dist
         rx_lead = rx
         r_lead_norm = float(np.sqrt(rx_lead * rx_lead + ry_lead * ry_lead))
@@ -120,7 +113,6 @@ class GreedyController(BaseController):
         if abs(cross) > self.KNIGHT_ALIGN_EPS:
             return rotate_step()
 
-        # Roughly aligned but not in range -> move forward
         return 0
 
     # ------------------ Archer ------------------ #
