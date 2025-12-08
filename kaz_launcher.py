@@ -47,6 +47,7 @@ def _make_factory(kaz_module):
     return factory
 
 
+
 def _try_imports():
     """
     Prefer v10; try butterfly first (current home), then sisl.
@@ -207,8 +208,9 @@ def run_kaz(selected_controller_name: str, status_cb=print):
                 num_knights=1,
                 max_arrows=1000,
                 vector_state=True,
+                spawn_rate=5,
                 use_typemasks=True,
-                max_zombies=1,
+                max_zombies=3,
             )
             break
         except Exception as e:
@@ -216,7 +218,7 @@ def run_kaz(selected_controller_name: str, status_cb=print):
     if env is None:
         status_cb(f"Render creation failed: {last_err}")
         return
-
+    status_cb(f"Agents in env: {env.possible_agents}")
     try:
         try:
             env.reset(seed=123)
