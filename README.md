@@ -12,7 +12,7 @@ It allows users to:
 
 The launcher works on **Windows**, **macOS**, and **Linux**.
 
-## 🚀 Getting Started
+## Getting Started
 
 ### 1. Clone the repository
 
@@ -51,7 +51,7 @@ Install everything with:
 
 ```bash
 pip install --upgrade pip
-pip install "pettingzoo[butterfly]>=1.24" "gymnasium==0.29.1" "pygame==2.6.1" numpy
+pip install "pettingzoo[butterfly]>=1.24" gymnasium==0.29.1 pygame==2.6.1 numpy screeninfo
 ```
 
 ### 4. Run the launcher
@@ -60,7 +60,7 @@ pip install "pettingzoo[butterfly]>=1.24" "gymnasium==0.29.1" "pygame==2.6.1" nu
 python kaz_launcher.py
 ```
 
-## 🧠 Controllers
+## Controllers
 
 Controllers live in the `controllers/` package and follow a simple interface:
 
@@ -94,9 +94,9 @@ You can easily add new controllers by creating new modules and registering them 
 
 ---
 
-## 📚 Learning Goals
+## Goals
 
-This project aims to teach:
+This project aims to:
 
 * How to work with **PettingZoo**’s multi-agent API
 * How to adapt **search algorithms** (DFS, BFS, A*, greedy) to multi-agent game environments
@@ -105,7 +105,7 @@ This project aims to teach:
 
 ---
 
-## 📜 License
+## License
 
 This project is open-source under the MIT License.
 Feel free to fork, modify, and use it for coursework or research projects.

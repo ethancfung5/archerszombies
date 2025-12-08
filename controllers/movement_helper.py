@@ -23,7 +23,7 @@ class MovementHelper:
             return 0.06, 0.90
         else:
             # archer: farther ranged shot, tight aim cone
-            return 0.6, 0.995
+            return 0.25, 0.995
 
     @staticmethod
     def noop_or_default(action_space, noop: int = 5, fallback: int = 0) -> int:

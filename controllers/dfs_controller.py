@@ -106,20 +106,7 @@ class DepthFirstSearchController(BaseController):
         goal_rel: Tuple[float, float],
         label: str,
     ) -> Optional[Tuple[float, float]]:
-        """
-        Convert the continuous local goal position (goal_rel) into a discrete
-        grid coordinate, then run **Depth-First Search (DFS)** on that grid
-        from start=(0, 0) to goal=(goal_ix, goal_iy).
 
-        - Grid domain: [-GRID_RADIUS .. +GRID_RADIUS] x [-GRID_RADIUS .. +GRID_RADIUS]
-        - Each cell is CELL_SIZE world units.
-
-        Returns
-        -------
-        next_step_rel : (float, float) or None
-            The next waypoint in local coordinates (one grid step along the DFS path),
-            or None if DFS fails to find a path.
-        """
         gx, gy = goal_rel
         cell_size = self.CELL_SIZE
         R = self.GRID_RADIUS
@@ -172,27 +159,7 @@ class DepthFirstSearchController(BaseController):
         R: int,
         label: str,
     ) -> Optional[List[Coord]]:
-        """
-        Depth-First Search (DFS) on a bounded 4-neighbor grid.
 
-        Grid:
-            [-R .. R] x [-R .. R]
-
-        Neighbors:
-            4-connected: (±1, 0), (0, ±1)
-
-        Implementation details:
-            - Uses an explicit LIFO stack (list + pop()).
-            - Each step:
-                * pop() current cell
-                * generate neighbors
-                * push unexplored neighbors on the stack
-            This is **true DFS**, not BFS or Dijkstra.
-
-            Neighbors are ordered by Euclidean distance to the goal so that
-            DFS tends to "dive" toward the goal first, but the search pattern
-            is still depth-first because of the stack.
-        """
         base_neighbors = [(1, 0), (-1, 0), (0, 1), (0, -1)]
 
         def in_bounds(x: int, y: int) -> bool:

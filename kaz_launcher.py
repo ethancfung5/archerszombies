@@ -331,7 +331,7 @@ class App(tk.Tk):
 
         subtitle = ttk.Label(
             center,
-            text="1 knight, 0 archers. Controller decides movement; launcher just logs zombies.",
+            text="1 knight, 1 archers. Controller decides movement; launcher just logs zombies.",
             style="Subheading.TLabel",
         )
         subtitle.grid(row=1, column=0, sticky="n")
