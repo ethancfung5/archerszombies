@@ -436,7 +436,7 @@ class App(tk.Tk):
         try:
             self._child_proc = subprocess.Popen(cmd)
             self._log(f"Starting run with controller: {name}")
-            self._log(f"Using env: {ENV_LABEL or 'unknown'} (1 knight, 0 archers)")
+            self._log(f"Using env: {ENV_LABEL or 'unknown'} (1 knight, 1 archers)")
             self.after(500, self._poll_child)
         except Exception as e:
             self._log(f"Failed to start game: {type(e).__name__}: {e}")
