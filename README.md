@@ -21,7 +21,23 @@ git clone https://github.com/ethancfung5/archerszombies.git
 cd archerszombies
 ```
 
-### 2. Create & activate a virtual environment
+### 2. Prerequisites: Python 3
+
+This project requires Python 3.10+.
+
+Check your Python version:
+macOS / Linux
+```
+python3 --version
+```
+Windows
+```
+python --version
+```
+
+If Python 3 is not installed, download it from:
+https://www.python.org/downloads/
+### 3. Create & activate a virtual environment
 
 #### macOS / Linux:
 
@@ -43,7 +59,7 @@ Your shell prompt should now show:
 (.venv)
 ```
 
-### 3. Install required dependencies
+### 4. Install required dependencies
 
 PettingZoo’s KAZ environment (v10) lives in the **butterfly** family and requires Gymnasium + pygame.
 
@@ -51,10 +67,10 @@ Install everything with:
 
 ```bash
 pip install --upgrade pip
-pip install "pettingzoo[butterfly]>=1.24" gymnasium==0.29.1 pygame==2.6.1 numpy screeninfo
+pip install "pettingzoo[butterfly]>=1.24" pygame==2.6.1 numpy screeninfo
 ```
 
-### 4. Run the launcher
+### 5. Run the launcher
 
 ```bash
 python kaz_launcher.py
