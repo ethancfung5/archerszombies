@@ -98,7 +98,7 @@ You can easily add new controllers by creating new modules and registering them 
 
 ---
 
-## 🖼️ Screenshots
+## Screenshots
 
 ### Launcher Home Screen
 

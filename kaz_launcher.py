@@ -1,4 +1,16 @@
-# kaz_launcher.py
+"""
+kaz_launcher.py
+
+This module implements a standalone launcher application for the
+Knights Archers Zombies (KAZ) environment from PettingZoo.
+
+Key responsibilities:
+- Discover and configure a compatible KAZ environment (v10 preferred, v9 as fallback).
+- Expose a graphical Tkinter-based interface for selecting a controller and launching a game.
+- Execute the game loop in a separate Python process to avoid conflicts between Tkinter and SDL/pygame.
+- Provide structured logging of environment status and debugging information for analysis.
+"""
+
 import sys
 import os
 import subprocess
@@ -13,30 +25,50 @@ from controllers import CONTROLLERS, get_controller_by_name
 
 # ----------------------- PettingZoo import handling ----------------------------
 
-ENV_FACTORY = None
-ENV_LABEL = None
-IMPORT_ERRORS = []
+# Globals which are set once we successfully import KAZ
+ENV_FACTORY = None   # Callable which returns a PettingZoo environment
+ENV_LABEL = None     # Description of the environment
+IMPORT_ERRORS = []   # Import error messages
 
 
 def _make_factory(kaz_module):
     """
-    Return an env factory preferring env(render_mode=...), with safe fallbacks.
-    Supports extra kwargs (e.g., num_archers=0, num_knights=2, vector_state, use_typemasks).
+    Construct an environment factory wrapper around a KAZ module.
+
+    The returned factory attempts to instantiate the environment using a
+    preferred signature of the form:
+        env(render_mode=..., **env_kwargs)
+
+    Since different PettingZoo versions may have slightly different APIs,
+    the factory includes several fallbacks:
+    - env(render_mode=..., **env_kwargs)
+    - env(**env_kwargs)
+    - env() without any parameters
+    - raw_env(...) or parallel_env(...)
+
+    This approach centralizes environment construction logic and isolates
+    downstream code from API differences between PettingZoo releases.
     """
     def factory(render_mode="human", **env_kwargs):
+        # Primary construction path 
         if hasattr(kaz_module, "env"):
             try:
                 return kaz_module.env(render_mode=render_mode, **env_kwargs)
             except TypeError:
+                # The environment may not accept render_mode or additional kwargs
                 try:
                     return kaz_module.env(**env_kwargs)
                 except TypeError:
+                    # Fallback call with no keyword arguments
                     return kaz_module.env()
+        # Alternative: raw_env() for older or lower-level apis
         if hasattr(kaz_module, "raw_env"):
             try:
                 return kaz_module.raw_env(render_mode=render_mode, **env_kwargs)
             except TypeError:
                 return kaz_module.raw_env()
+        
+        # Alternative: parallel_env() for parallel apis
         if hasattr(kaz_module, "parallel_env"):
             try:
                 return kaz_module.parallel_env(render_mode=render_mode, **env_kwargs)
@@ -50,9 +82,20 @@ def _make_factory(kaz_module):
 
 def _try_imports():
     """
-    Prefer v10; try butterfly first (current home), then sisl.
-    As a last resort, allow v9 (deprecated) so the app can still run
-    but we'll warn loudly in the UI.
+    Attempt to import the KAZ environment from several locations.
+
+    Priority order:
+      1. pettingzoo.butterfly.knights_archers_zombies_v10
+      2. pettingzoo.sisl.knights_archers_zombies_v10
+      3. pettingzoo.butterfly.knights_archers_zombies_v9 (deprecated)
+
+    On success:
+      - ENV_FACTORY is initialized with a environment constructor
+      - ENV_LABEL is set to a string describing the environment
+
+    On failure:
+      - ENV_FACTORY is set to None
+      - IMPORT_ERRORS is populated with import error messages
     """
     global ENV_FACTORY, ENV_LABEL
 
@@ -76,7 +119,7 @@ def _try_imports():
     ENV_FACTORY = None
     ENV_LABEL = None
 
-
+# Initialize environment discovery at module import time 
 _try_imports()
 
 # ------------------------- Debug helper (logging only) -------------------------
@@ -84,20 +127,12 @@ _try_imports()
 
 def _debug_zombies_from_obs(obs, agent_name: str, t: int, status_cb):
     """
-    DEBUG ONLY: print information about zombies around the current agent.
-
-    We assume:
-      - vector_state=True
-      - use_typemasks=True
-
-    Each row of obs is length 11:
-      [typemask(6), norm_dist, rel_x, rel_y, ang_x, ang_y]
-
-    typemask indices:
-      [zombie, archer, knight, sword, arrow, current_agent]
-
-    This function DOES NOT decide the action.
-    It only logs information to help understand the observation structure.
+    Log zombie info for a single agent.
+    
+    Args:
+        obs: observation vector for a single agent
+        agent_name: name of the agent
+        t: current timestep
     """
     arr = np.asarray(obs, dtype=float)
 
@@ -127,6 +162,7 @@ def _debug_zombies_from_obs(obs, agent_name: str, t: int, status_cb):
         closest_idx = None
         closest_dist = None
 
+        # Iterate over each zombie row and log parameters
         for idx in zombie_indices:
             dist = dists[idx]
             rx, ry = rel[idx]
@@ -140,6 +176,7 @@ def _debug_zombies_from_obs(obs, agent_name: str, t: int, status_cb):
                 closest_dist = dist
                 closest_idx = idx
 
+        # Provide explicit summary for closest zombie if it exists
         if closest_idx is not None and np.isfinite(closest_dist):
             rx, ry = rel[closest_idx]
             ax, ay = ang[closest_idx]
@@ -197,7 +234,7 @@ def run_kaz(selected_controller_name: str, status_cb=print):
     status_cb(f"Using env: {ENV_LABEL}")
     status_cb(f"Launching KAZ (1 knight, 1 archers). Controller selected: {controller.name}")
 
-    # Prefer visible window; fallback to headless construction if needed
+    # Construct a visible environment
     env = None
     last_err = None
     for mode in ("human", None):
@@ -220,6 +257,7 @@ def run_kaz(selected_controller_name: str, status_cb=print):
         return
     status_cb(f"Agents in env: {env.possible_agents}")
     try:
+        # PettingZoo versions support seeding during reset and older ones may not
         try:
             env.reset(seed=123)
         except TypeError:
@@ -227,13 +265,17 @@ def run_kaz(selected_controller_name: str, status_cb=print):
 
         t = 0
         running = True
+        
+        # agent_iter() is an iterator over the agents in the environment
         for agent in env.agent_iter():
             if not running:
                 break
 
+            # Retrieve latest observation and status for current agent
             obs, reward, termination, truncation, info = env.last(observe=True)
 
             if termination or truncation:
+                # For terminal agents, PettingZoo expects none
                 action = None  # PettingZoo convention when done
             else:
                 action_space = env.action_space(agent)
@@ -247,6 +289,7 @@ def run_kaz(selected_controller_name: str, status_cb=print):
 
             env.step(action)
 
+            # Process pygame event to ensure correct window
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
@@ -256,9 +299,11 @@ def run_kaz(selected_controller_name: str, status_cb=print):
                 try:
                     controller.update_scores(agent, action, reward)
                 except Exception:
+                    # Suppress controller-specific errors to avoid aborting episode
                     pass
 
             t += 1
+            # Progress reporting at fixed intervals
             if t % 25 == 0:
                 status_cb(f"[t={t}] last={agent} r={reward:.2f}")
 
@@ -266,6 +311,7 @@ def run_kaz(selected_controller_name: str, status_cb=print):
     except Exception as e:
         status_cb(f"Run error: {type(e).__name__}: {e}")
     finally:
+        # Ensure resources associated with environment are released
         try:
             env.close()
         except Exception:
@@ -284,7 +330,7 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
 
-        # DPI / scaling
+        # Adjust global scaling factor 
         try:
             self.tk.call("tk", "scaling", 1.25)
         except Exception:
@@ -387,21 +433,36 @@ class App(tk.Tk):
 
     # -------------------- Helpers --------------------
     def _toggle_fullscreen(self, _evt=None):
+        """
+        Toggle the full-screen state of the application window.
+        """
         self._fullscreen = not self._fullscreen
         self.attributes("-fullscreen", self._fullscreen)
 
     def _exit_fullscreen(self, _evt=None):
+        """
+        Ensure the application exits full-screen mode if currently active.
+        """
         if self._fullscreen:
             self._fullscreen = False
             self.attributes("-fullscreen", False)
 
     def _log(self, msg: str):
+        """
+        Append a message to the status text widget and scroll to the most recent entry.
+
+        This method centralizes the logging mechanism for the GUI launcher and
+        ensures consistent formatting and read-only behavior of the log widget.
+        """
         self.status.configure(state="normal")
         self.status.insert("end", msg + "\n")
         self.status.see("end")
         self.status.configure(state="disabled")
 
     def _poll_child(self):
+        """
+        Periodically query the status of the child process running the game loop.
+        """
         if self._child_proc is None:
             return
         code = self._child_proc.poll()
@@ -414,6 +475,9 @@ class App(tk.Tk):
 
     # -------------------- Action --------------------
     def on_play(self):
+        """
+        Handle the Play button click event
+        """
         if ENV_FACTORY is None:
             err = "\n".join(IMPORT_ERRORS) or "Unknown import error."
             messagebox.showerror(
@@ -447,7 +511,15 @@ class App(tk.Tk):
 
 
 def _run_game_cli():
-    # invoked as: python kaz_launcher.py --run-game "<controller name>"
+    """
+    Command-line entry point for directly running the game loop.
+
+    Expected usage:
+        python kaz_launcher.py --run-game "<controller name>"
+
+    This mode bypasses the Tkinter launcher and directly invokes run_kaz(...)
+    with simple console-based logging.
+    """
     if len(sys.argv) < 3:
         print("Usage: python kaz_launcher.py --run-game \"<controller name>\"")
         sys.exit(2)
@@ -456,6 +528,7 @@ def _run_game_cli():
 
 
 if __name__ == "__main__":
+    # Distinguish between launcher mode and direct game execution mode
     if len(sys.argv) >= 2 and sys.argv[1] == "--run-game":
         _run_game_cli()
     else:
